@@ -1,50 +1,51 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr 11 12:37:57 2023
-
-@author: Adena
-"""
-
-# -*- coding: utf-8 -*-
-"""
 Created on Tue Apr 11 11:04:54 2023
 
 @author: Adena
 """
 #%% Imports
-import pandas as pd
+import requests
 import yaml
 import tweepy
 from textblob import TextBlob
 import re
-
 #%% Definitions
 def process_yaml():
     with open("config.yaml") as file:
         return yaml.safe_load(file)
-    
+
 def create_twitter_api(data):
-    consumer_key = data["twitter"]["consumer_key"]
-    consumer_secret = data["twitter"]["consumer_secret"]
-    access_token = data["twitter"]["access_token"]
-    access_token_secret = data["twitter"]["access_token_secret"]
-    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(access_token, access_token_secret)
-    api = tweepy.API(auth)
-    return api
+    consumer_key = data["twitter"]["api_key"]
+    consumer_secret = data["twitter"]["api_key_secret"]
+    #access_token = data["twitter"]["access_token"]
+    #access_token_secret = data["twitter"]["access_token_secret"]
+    #auth = tweepy.OAuth1UserHandler(consumer_key, consumer_secret, access_token, access_token_secret)
+    #api = tweepy.Client(auth=auth, api_version='2')
+    bearer_token = data["twitter"]["bearer_token"]
+    client = tweepy.Client(bearer_token=bearer_token)
+    return client
 
 def get_tweets(api, handle, count):
-    tweets = api.user_timeline(screen_name=handle, count=count)
-    return tweets
+    tweets = api.search_all_tweets(
+        query=f"from:{handle}",
+        tweet_fields=["created_at", "text"],
+        expansions=["author_id"],
+        max_results=count,
+        user_fields=["username"]
+    )
+    return tweets.data
+
 
 def clean_tweet(tweet):
     # Utility function to clean tweet text by removing links, special characters
     # using simple regex statements.
-    return ' '.join(re.sub("(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", tweet).split())
+    return ' '.join(re.sub("([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", tweet).replace('@', '').split())
+
 
 def analyze_sentiment(tweet):
     # create TextBlob object of passed tweet text
-    analysis = TextBlob(clean_tweet(tweet))
+    analysis = TextBlob(clean_tweet(tweet['text']))
     # set sentiment
     return analysis.sentiment.polarity
 
@@ -67,11 +68,11 @@ def main():
     handle = data["twitter"]["handle"]
     count = 100
     tweets = get_tweets(api, handle, count)
-    sentiments = [analyze_sentiment(tweet.text) for tweet in tweets]
+    sentiments = [analyze_sentiment(tweet) for tweet in tweets]
     week_score = mean_score(sentiments)
     print(week_score)
     week_logic(week_score)
-
-#%% Main    
-if __name__ == "__main__":
+#%% Main
+if __name__ == '__main__':
     main()
+
